@@ -406,10 +406,13 @@ extension GooseBLEClient {
     let metadataSummary = historyStartReceived || historyEndReceived || historyCompleteReceived
       ? "metadata-only"
       : "no-start"
+    let isGen4 = activeCommandGeneration == .gen4
+    let retrySequence = isGen4 ? "GEN4 preamble then SEND_HISTORICAL_DATA" : "GET_DATA_RANGE then SEND_HISTORICAL_DATA"
+    let firstCommandLabel = isGen4 ? "GEN4_PREAMBLE" : "GET_DATA_RANGE"
     publishSyncToast(phase: .syncing, detail: "Retrying historical transfer \(nextAttempt)/\(historicalTransferMaxRequestAttempts)")
     notifyHistoricalSyncProgress(
       status: "waiting",
-      detail: "Retrying GET_DATA_RANGE then SEND_HISTORICAL_DATA \(nextAttempt)/\(historicalTransferMaxRequestAttempts) after \(metadataSummary) transfer",
+      detail: "Retrying \(retrySequence) \(nextAttempt)/\(historicalTransferMaxRequestAttempts) after \(metadataSummary) transfer",
       terminal: false,
       failed: false
     )
@@ -417,7 +420,7 @@ extension GooseBLEClient {
       level: .warn,
       source: "ble.sync",
       title: "historical_sync.transfer.retry",
-      body: "attempt=\(nextAttempt)/\(historicalTransferMaxRequestAttempts) first=GET_DATA_RANGE reason=\(reason) previous=\(metadataSummary) history_start=\(historyStartReceived) history_end=\(historyEndReceived) history_complete=\(historyCompleteReceived)"
+      body: "attempt=\(nextAttempt)/\(historicalTransferMaxRequestAttempts) first=\(firstCommandLabel) reason=\(reason) previous=\(metadataSummary) history_start=\(historyStartReceived) history_end=\(historyEndReceived) history_complete=\(historyCompleteReceived)"
     )
     historyStartReceived = false
     historyEndReceived = false
@@ -425,7 +428,22 @@ extension GooseBLEClient {
     historyEndAckQueued = false
     historyEndAckSentThisBurst = false
     pendingHistoryEndAckPayload = nil
-    writeHistoricalCommand(.getDataRange)
+    pendingHistoricalCommand = nil
+    historicalCommandTimeoutWorkItem?.cancel()
+    if isGen4 {
+      sendGen4HistoryPreamble()
+      let runID = historicalSyncRunID
+      DispatchQueue.main.asyncAfter(deadline: .now() + Self.gen4HistoryKickoffDelay) { [weak self] in
+        guard let self,
+              self.historicalSyncRunID == runID,
+              self.isHistoricalSyncing else {
+          return
+        }
+        self.writeHistoricalCommand(.sendHistoricalData)
+      }
+    } else {
+      writeHistoricalCommand(.getDataRange)
+    }
     return true
   }
 
