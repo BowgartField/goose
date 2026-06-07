@@ -391,6 +391,19 @@ extension GooseBLEClient {
           historicalPacketsReceivedThisSync == 0 else {
       return false
     }
+    // Band signalled a full transfer cycle (history_end and/or history_complete)
+    // with zero packet bodies in between → the strap is already up to date
+    // (another client likely ACKed and advanced the read pointer). Retrying
+    // just replays the same metadata-only burst, so treat it as success.
+    if historyEndReceived || historyCompleteReceived {
+      record(
+        source: "ble.sync",
+        title: "historical_sync.up_to_date",
+        body: "history_start=\(historyStartReceived) history_end=\(historyEndReceived) history_complete=\(historyCompleteReceived) reason=\(reason)"
+      )
+      completeHistoricalSync(reason: "up_to_date_metadata_only")
+      return true
+    }
     guard historicalTransferRequestAttemptCount < historicalTransferMaxRequestAttempts else {
       let metadataSummary = historyStartReceived || historyEndReceived || historyCompleteReceived
         ? "transfer metadata was received but no historical packet bodies arrived"
