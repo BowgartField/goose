@@ -106,8 +106,14 @@ final class GooseBLEClient: NSObject, ObservableObject {
   }()
   let autoHistoricalSyncOnReady: Bool = {
     let processInfo = ProcessInfo.processInfo
-    return processInfo.arguments.contains("--goose-auto-historical-sync")
-      || processInfo.environment["GOOSE_AUTO_HISTORICAL_SYNC"] == "1"
+    // Auto-sync the band's history on connect by default so a multi-day backlog comes
+    // off the band without hunting for a manual trigger. Opt out with
+    // --goose-no-auto-historical-sync / GOOSE_AUTO_HISTORICAL_SYNC=0.
+    if processInfo.arguments.contains("--goose-no-auto-historical-sync")
+      || processInfo.environment["GOOSE_AUTO_HISTORICAL_SYNC"] == "0" {
+      return false
+    }
+    return true
   }()
   let diagnosticLoggingEnabled: Bool = {
     let processInfo = ProcessInfo.processInfo
