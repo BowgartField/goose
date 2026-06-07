@@ -55,7 +55,12 @@ extension GooseBLEClient {
     case V5PacketType.metadata, V5PacketType.puffinMetadata:
       handleHistoricalMetadata(payload)
     default:
-      break
+      record(
+        level: .debug,
+        source: "ble.sync",
+        title: "historical_sync.unknown_packet",
+        body: "char=\(characteristic.uuid.uuidString) type=\(packetType) payload_len=\(payload.count) head=\(Data(payload.prefix(16)).hexString)"
+      )
     }
   }
 
