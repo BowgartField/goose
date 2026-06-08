@@ -308,6 +308,13 @@ extension GooseAppModel {
 
   func handleHistoricalSyncProgress(_ progress: GooseHistoricalSyncProgress) {
     handleOvernightHistoricalSyncProgress(progress)
+    // Keep the screen on while a historical sync is actively transferring
+    // pages so iOS auto-lock doesn't suspend BLE delivery mid-backlog.
+    if progress.isTerminal || progress.failed {
+      UIApplication.shared.isIdleTimerDisabled = false
+    } else {
+      UIApplication.shared.isIdleTimerDisabled = true
+    }
     if progress.isTerminal && !progress.failed {
       onHistoricalSyncCompleted?()
     }

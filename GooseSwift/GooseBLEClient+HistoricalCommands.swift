@@ -45,6 +45,10 @@ extension GooseBLEClient {
     historyEndAckSentThisBurst = false
     pendingHistoryEndAckPayload = nil
     gen4HistoricalPageSeq = 0
+    gen4HistoricalPageSeqStart = 0
+    gen4HistoricalPageCurrent = 0
+    historicalSyncProgressPercent = 0.0
+    historicalSyncProgressDetail = "Starting…"
     historyEndReceived = false
     historyCompleteReceived = false
     historyStartReceived = false

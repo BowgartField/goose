@@ -26,9 +26,10 @@ extension GooseBLEClient {
       historicalPacketsReceivedThisSync += 1
       publishHistoricalPacketCountIfNeeded()
       scheduleHistoricalIdleCompletion(reason: "historical_data_idle")
+      let progressSuffix = historicalSyncProgressDetail.isEmpty ? "" : " | \(historicalSyncProgressDetail)"
       notifyHistoricalSyncProgress(
         status: "syncing",
-        detail: "Received historical packet \(historicalPacketsReceivedThisSync)",
+        detail: "Received historical packet \(historicalPacketsReceivedThisSync)\(progressSuffix)",
         terminal: false,
         failed: false
       )
@@ -43,6 +44,23 @@ extension GooseBLEClient {
     default:
       break
     }
+  }
+
+  // Gen4 historical sync progress. Computes % from page_current (target, from
+  // cmd 34 response) and the live page_seq counter. Updates the published
+  // progress properties used by the UI/toast/Debug screen.
+  func updateHistoricalSyncProgress(currentSeq: UInt32) {
+    guard gen4HistoricalPageCurrent > gen4HistoricalPageSeqStart else {
+      historicalSyncProgressPercent = 0.0
+      historicalSyncProgressDetail = ""
+      return
+    }
+    let total = gen4HistoricalPageCurrent &- gen4HistoricalPageSeqStart
+    let done = min(total, currentSeq &- gen4HistoricalPageSeqStart)
+    let percent = Double(done) / Double(total)
+    historicalSyncProgressPercent = min(1.0, max(0.0, percent))
+    let percentInt = Int((historicalSyncProgressPercent * 100).rounded())
+    historicalSyncProgressDetail = "\(done) / \(total) pages (\(percentInt)%)"
   }
 
   func publishHistoricalPacketCountIfNeeded(force: Bool = false, at date: Date = Date()) {
@@ -507,19 +525,32 @@ extension GooseBLEClient {
       //   payload[18..22] LE32 last_synced echoed
       // The official-app capture started cmd 23 at last_synced + 1; we mirror that.
       if activeDeviceGeneration == .gen4 {
-        guard payload.count >= 14 else {
+        guard payload.count >= 18 else {
           failHistoricalSync("Gen4 cmd 34 response too short: \(payload.count) bytes payload=\(Data(payload).hexString)")
           return
         }
+        let highestPage = UInt32(payload[6])
+          | (UInt32(payload[7]) << 8)
+          | (UInt32(payload[8]) << 16)
+          | (UInt32(payload[9]) << 24)
         let lastSynced = UInt32(payload[10])
           | (UInt32(payload[11]) << 8)
           | (UInt32(payload[12]) << 16)
           | (UInt32(payload[13]) << 24)
+        let nextWriteHead = UInt32(payload[14])
+          | (UInt32(payload[15]) << 8)
+          | (UInt32(payload[16]) << 16)
+          | (UInt32(payload[17]) << 24)
         gen4HistoricalPageSeq = lastSynced &+ 1
+        gen4HistoricalPageSeqStart = gen4HistoricalPageSeq
+        // page_current target = highest available page. Use nextWriteHead as
+        // fallback if highest is zero (band hasn't written yet).
+        gen4HistoricalPageCurrent = max(highestPage, nextWriteHead)
+        updateHistoricalSyncProgress(currentSeq: gen4HistoricalPageSeq)
         record(
           source: "ble.sync",
           title: "historical_sync.gen4.range",
-          body: "last_synced=\(lastSynced) next_seq=\(gen4HistoricalPageSeq)"
+          body: "last_synced=\(lastSynced) next_seq=\(gen4HistoricalPageSeq) page_current=\(gen4HistoricalPageCurrent) pages_to_sync=\(gen4HistoricalPageCurrent &- gen4HistoricalPageSeqStart)"
         )
         if historicalRangePollOnly {
           completeHistoricalSync(reason: "gen4_range_poll_complete")
@@ -609,6 +640,7 @@ extension GooseBLEClient {
       let ackPayload: [UInt8]
       if activeDeviceGeneration == .gen4 {
         gen4HistoricalPageSeq &+= 1
+        updateHistoricalSyncProgress(currentSeq: gen4HistoricalPageSeq)
         ackPayload = gen4PageRequestPayload(seq: gen4HistoricalPageSeq)
         record(
           level: .debug,

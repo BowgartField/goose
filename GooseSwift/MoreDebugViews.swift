@@ -72,7 +72,11 @@ struct MoreDebugView: View {
         )
         MoreInfoRow(
           title: "Historical",
-          value: "\(model.ble.historicalSyncStatus) | packets \(model.ble.historicalPacketCount)",
+          value: {
+            let base = "\(model.ble.historicalSyncStatus) | packets \(model.ble.historicalPacketCount)"
+            let progress = model.ble.historicalSyncProgressDetail
+            return progress.isEmpty ? base : "\(base) | \(progress)"
+          }(),
           systemImage: "arrow.triangle.2.circlepath",
           status: model.ble.isHistoricalSyncing ? .pending : (model.ble.lastHistoricalSyncCompletedAt == nil ? .pending : .ready)
         )

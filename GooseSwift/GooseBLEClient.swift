@@ -41,6 +41,13 @@ final class GooseBLEClient: NSObject, ObservableObject {
   @Published var historicalPacketCount = 0
   @Published var lastHistoricalSyncCompletedAt: Date?
   @Published var lastHistoricalRangeCommandStatus = "No GET_DATA_RANGE response"
+  // Gen4 historical sync progress. page_current = band's newest available page
+  // (target), gen4HistoricalPageSeqStart = last_synced + 1 at sync start.
+  // historicalSyncProgressPercent = 0.0–1.0 as pages flow back.
+  @Published var historicalSyncProgressPercent: Double = 0.0
+  @Published var historicalSyncProgressDetail: String = ""
+  var gen4HistoricalPageCurrent: UInt32 = 0
+  var gen4HistoricalPageSeqStart: UInt32 = 0
   @Published var alarmCommandStatus = "No alarm command sent"
   @Published var lastAlarmCommandFrameHex = ""
   @Published var lastAlarmResponseSummary = "No alarm response yet"
