@@ -176,20 +176,28 @@ final class GooseAppModel: ObservableObject {
   var activityTimelineRefreshGeneration = 0
   var skippedNotificationDiagnostics = SkippedNotificationDiagnostics()
   var frameReassemblyBuffers: [String: Data] = [:]
+  // Default capture on so historical sync bodies hit the DB and feed the metric
+  // pipeline. Set the env var to "0" to disable.
   let autoStartHealthPacketCaptureOnReady: Bool = {
     let processInfo = ProcessInfo.processInfo
-    return processInfo.arguments.contains("--goose-start-health-packet-capture")
-      || processInfo.environment["GOOSE_START_HEALTH_PACKET_CAPTURE"] == "1"
+    if processInfo.environment["GOOSE_START_HEALTH_PACKET_CAPTURE"] == "0" {
+      return false
+    }
+    return true
   }()
   let autoStartTemperaturePacketCaptureOnReady: Bool = {
     let processInfo = ProcessInfo.processInfo
-    return processInfo.arguments.contains("--goose-start-temperature-packet-capture")
-      || processInfo.environment["GOOSE_START_TEMPERATURE_PACKET_CAPTURE"] == "1"
+    if processInfo.environment["GOOSE_START_TEMPERATURE_PACKET_CAPTURE"] == "0" {
+      return false
+    }
+    return true
   }()
   let autoStartPhysiologyPacketCaptureOnReady: Bool = {
     let processInfo = ProcessInfo.processInfo
-    return processInfo.arguments.contains("--goose-start-physiology-packet-capture")
-      || processInfo.environment["GOOSE_START_PHYSIOLOGY_PACKET_CAPTURE"] == "1"
+    if processInfo.environment["GOOSE_START_PHYSIOLOGY_PACKET_CAPTURE"] == "0" {
+      return false
+    }
+    return true
   }()
   let autoStartRespiratoryPacketWatchOnReady: Bool = {
     let processInfo = ProcessInfo.processInfo
@@ -209,7 +217,7 @@ final class GooseAppModel: ObservableObject {
        seconds > 0 {
       return seconds
     }
-    return 30 * 60
+    return 24 * 60 * 60
   }()
   let autoStartTemperaturePacketCaptureDuration: TimeInterval = {
     let processInfo = ProcessInfo.processInfo
@@ -224,7 +232,7 @@ final class GooseAppModel: ObservableObject {
        seconds > 0 {
       return seconds
     }
-    return 10 * 60
+    return 24 * 60 * 60
   }()
   let autoStartPhysiologyPacketCaptureDuration: TimeInterval = {
     let processInfo = ProcessInfo.processInfo
@@ -239,7 +247,7 @@ final class GooseAppModel: ObservableObject {
        seconds > 0 {
       return seconds
     }
-    return 30 * 60
+    return 24 * 60 * 60
   }()
   let autoStartRespiratoryPacketWatchDuration: TimeInterval = {
     let processInfo = ProcessInfo.processInfo

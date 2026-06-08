@@ -144,6 +144,16 @@ extension GooseBLEClient: CBPeripheralDelegate {
       return false
     }
 
+    // Body packets (HISTORICAL_DATA 47, HISTORICAL_IMU_DATA_STREAM 52) stream
+    // on the data characteristic (xx05) and can be fragmented across
+    // notifications. Skipping fragments that don't parse to a complete control
+    // frame drops the body stream silently, so we always dispatch
+    // notifications arriving on the data stream characteristic.
+    let uuidLower = characteristic.uuid.uuidString.lowercased()
+    if uuidLower.hasPrefix("61080005") || uuidLower.hasPrefix("fd4b0005") {
+      return true
+    }
+
     for frame in frames(in: value) {
       guard let payload = payload(in: frame),
             let packetType = payload.first else {
@@ -154,7 +164,9 @@ extension GooseBLEClient: CBPeripheralDelegate {
            V5PacketType.puffinCommandResponse,
            V5PacketType.event,
            V5PacketType.metadata,
-           V5PacketType.puffinMetadata:
+           V5PacketType.puffinMetadata,
+           V5PacketType.historicalData,
+           V5PacketType.historicalIMUDataStream:
         return true
       default:
         continue
